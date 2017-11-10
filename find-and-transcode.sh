@@ -1,48 +1,31 @@
 #!/bin/bash
 
-POSITIONAL=()
-while [[ $# -gt 0 ]]
-do
-key="$1"
+# Usage:
+# Feed this script a 4k video file from a camera, and it will transcode it to dnxhr_hq 4k (for editing) in the same directory.
+#TODO - find and execute logic
+#TODO - handle command-line arguments (sourcedir, targetdir)
+#TODO - read current resolution from the input file to determine the ideal output resolution
 
-case $key in
-    -e|--extension)
-    EXTENSION="$2"
-    shift # past argument
-    shift # past value
-    ;;
-    -s|--searchpath)
-    SEARCHPATH="$2"
-    shift # past argument
-    shift # past value
-    ;;
-    -l|--lib)
-    LIBPATH="$2"
-    shift # past argument
-    shift # past value
-    ;;
-    --default)
-    DEFAULT=YES
-    shift # past argument
-    ;;
-    *)    # unknown option
-    POSITIONAL+=("$1") # save it in an array for later
-    shift # past argument
-    ;;
-esac
-done
-set -- "${POSITIONAL[@]}" # restore positional parameters
-
-echo FILE EXTENSION  = "${EXTENSION}"
-echo SEARCH PATH     = "${SEARCHPATH}"
-echo LIBRARY PATH    = "${LIBPATH}"
-echo DEFAULT         = "${DEFAULT}"
-echo "Number files in SEARCH PATH with EXTENSION:" $(ls -1 "${SEARCHPATH}"/*."${EXTENSION}" | wc -l)
-if [[ -n $1 ]]; then
-    echo "Last line of file specified as non-opt/last argument:"
-    tail -1 "$1"
+inputfile="$1"
+echo $inputfile
+# For now, transcode a file into dnxhr_hq using yuuv422p as a container.
+outputfile="$(basename ${inputfile} | cut -f 1 -d '.')_transcoded.MOV"
+rm $outputfile
+ffmpeg -i ${inputfile} -c:v dnxhd -profile:v dnxhr_hq -vf scale=4096x2160,fps=30000/1001,format=yuv422p -b:v 110M -c:a pcm_s16le ${outputfile}
+if [ $? -eq 0 ]
+then
+  resolution=$(ffmpeg -i $1 2>&1 | grep -oP 'Stream .*, \K[0-9]+x[0-9]+')
+  echo "Successfully transcoded to ${resolution} in yuv442p using dnxhr_hq. Output file is ${outputfile}"
+else
+  echo "Something went wrong with transcoding" >&2
+  exit 1
 fi
 
-# TODO - find and execute logic
-# For now, transcode a file into dnxhd using yuuv422p as a container.
-ffmpeg -i $1 -c:v dnxhd -vf scale=1280x720,fps=30000/1001,format=yuv422p -b:v 110M -c:a pcm_s16le $1.mov
+# Let's make this an option, rather than the default.
+# If a file is elsewhere in the filesystem, it can totally just stay there.
+#TODO - make this a command-line argument.
+# mkdir -p originals
+# mv $inputfile originals
+echo "Finished."
+
+exit 0
